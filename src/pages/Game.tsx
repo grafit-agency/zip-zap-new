@@ -5,6 +5,27 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { saveGameResult } from "@/api/players";
 import { useToast } from "@/hooks/use-toast";
 
+// CSS dla animacji bramek
+const gateAnimationStyle = `
+  @keyframes gateMove {
+    0% { transform: translateY(0px); }
+    25% { transform: translateY(-60px); }
+    50% { transform: translateY(0px); }
+    75% { transform: translateY(60px); }
+    100% { transform: translateY(0px); }
+  }
+  
+  .gate-moving {
+    animation: gateMove 3s ease-in-out infinite;
+  }
+  
+  .gate-moving-delay-1 { animation-delay: 0.5s; }
+  .gate-moving-delay-2 { animation-delay: 1s; }
+  .gate-moving-delay-3 { animation-delay: 1.5s; }
+  .gate-moving-delay-4 { animation-delay: 2s; }
+  .gate-moving-delay-5 { animation-delay: 2.5s; }
+`;
+
 interface Gate {
   id: number;
   x: number;
@@ -103,7 +124,18 @@ const Game = () => {
     const availableHeight = areaHeight - gap;
     const minTopHeight = availableHeight * 0.2;
     const maxTopHeight = availableHeight * 0.6;
-    const topHeight = Math.random() * (maxTopHeight - minTopHeight) + minTopHeight;
+    let topHeight = Math.random() * (maxTopHeight - minTopHeight) + minTopHeight;
+    
+    // Od 4 punktu wzwyż - dodaj losowe przesunięcie gap
+    if (score >= 4) {
+      const shiftAmount = Math.random() * 100 - 50; // -50 do +50 pikseli
+      topHeight += shiftAmount;
+      
+      // Upewnij się że topHeight nie wychodzi poza granice
+      topHeight = Math.max(20, Math.min(availableHeight - 20, topHeight));
+      
+      console.log(`Gate shift activated! Score: ${score}, Shift: ${shiftAmount.toFixed(1)}px, Div movement: ON, Visible gates will move, Collision areas extended with padding`);
+    }
     
     // Dolna część zajmuje resztę dostępnej przestrzeni
     const bottomHeight = availableHeight - topHeight;
@@ -282,6 +314,7 @@ const Game = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <style>{gateAnimationStyle}</style>
       <Button
         variant="ghost"
         size="icon"
@@ -294,12 +327,22 @@ const Game = () => {
       
       {/* Wynik */}
       <div className="fixed top-4 right-4 bg-black/80 text-white px-4 py-2 rounded-lg font-bold text-xl z-10">
-        Score: {score}
+        <div>Score: {score}</div>
+        <div className="text-sm">Speed: {gameSpeed.toFixed(2)}x</div>
+        {score >= 4 && (
+          <div className="text-sm text-yellow-400">⚠️ Gap Shift Active!</div>
+        )}
+        {score >= 4 && (
+          <div className="text-sm text-blue-400">🎯 Gate Movement Active!</div>
+        )}
+        {score >= 4 && (
+          <div className="text-sm text-purple-400">🛡️ Extended Collision Areas!</div>
+        )}
       </div>
       
       {/* Game Over Screen */}
       {gameState === 'gameOver' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30" data-game-wrapper="true">
           <div className="bg-white p-8 rounded-lg text-center max-w-md mx-4">
             <h2 className="text-3xl font-bold text-red-600 mb-4">Game Over!</h2>
             <p className="text-2xl font-bold mb-4">Score: {score}</p>
@@ -319,7 +362,7 @@ const Game = () => {
       )}
       
       <div className="flex items-center justify-center min-h-screen">
-        <div 
+        <div
           ref={gameAreaRef}
           className="relative bg-gradient-to-b from-sky-200 to-sky-400 border-4 border-gray-800 rounded-lg overflow-hidden shadow-2xl"
           style={{ 
@@ -333,18 +376,22 @@ const Game = () => {
           {gates.map(gate => (
             <div 
               key={gate.id} 
-              className="absolute flex flex-col h-full" 
+              className={`absolute flex flex-col h-full ${score >= 4 && gate.x < (gameAreaRef.current?.offsetWidth || 1200) ? `gate-moving gate-moving-delay-${(gate.id % 5) + 1}` : ''}`}
               style={{ 
                 left: gate.x,
                 width: '60px',
                 height: `${gate.totalHeight}px`
               }}
+              data-gates="wrapper"
             >
               {/* Górna część bramki */}
               <div 
                 className="bg-green-600 border-2 border-green-800 flex-shrink-0"
                 style={{ 
-                  height: `${gate.topHeight}px`
+                  height: `${gate.topHeight + 70}px`,
+                  paddingTop: '30px',
+                  paddingBottom: '30px',
+                  marginTop: '-100px'
                 }}
                 data-hit="game-over"
               />
@@ -362,7 +409,10 @@ const Game = () => {
               <div 
                 className="bg-green-600 border-2 border-green-800 flex-shrink-0"
                 style={{ 
-                  height: `${gate.bottomHeight}px`
+                  height: `${gate.bottomHeight + 70}px`,
+                  paddingTop: '30px',
+                  paddingBottom: '30px',
+                  marginBottom: '-100px'
                 }}
                 data-hit="game-over"
               />
