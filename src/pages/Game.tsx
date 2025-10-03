@@ -36,10 +36,19 @@ interface Gate {
   scored: boolean; // Czy już przyznano punkty za tę bramkę
 }
 
+interface Collectible {
+  id: number;
+  x: number;
+  y: number;
+  type: 'star' | 'coin' | 'gem';
+  collected: boolean;
+}
+
 interface ZigZac {
   x: number;
   y: number;
-  direction: number; // Kąt w stopniach
+  direction: number; // Aktualny kąt w stopniach
+  targetDirection: number; // Docelowy kąt w stopniach
   speed: number;
   turnDirection: 'up' | 'down'; // Kierunek następnego obrotu
 }
@@ -48,22 +57,78 @@ const Game = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [gates, setGates] = useState<Gate[]>([]);
-  const [gameSpeed, setGameSpeed] = useState(2);
+  const [collectibles, setCollectibles] = useState<Collectible[]>([]);
+  const [collectedItems, setCollectedItems] = useState<Collectible[]>([]);
+  const [gameSpeed, setGameSpeed] = useState(5);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'gameOver'>('playing');
   const [savingScore, setSavingScore] = useState(false);
   const [zigzac, setZigzac] = useState<ZigZac>({
     x: 100,
     y: 300,
-    direction: 45, // Startuje pod kątem 45° (ruch w górę)
-    speed: gameSpeed, // Ta sama prędkość co animacja
-    turnDirection: 'down' // Pierwszy obrót w dół (do -45°)
+    direction: 60, // Startuje pod kątem 60° (ruch w górę)
+    targetDirection: 60, // Docelowy kąt
+    speed: 5, // Początkowa prędkość
+    turnDirection: 'down' // Pierwszy obrót w dół (do -60°)
   });
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const gateIdRef = useRef(0);
+  const collectibleIdRef = useRef(0);
   const scoredElements = useRef<Set<Element>>(new Set());
   const scoreSavedRef = useRef(false); // Flaga czy wynik został już zapisany
+  const currentGameSpeedRef = useRef(5); // Ref do przechowywania aktualnej prędkości
+
+  // Funkcja sprawdzania kolizji z obiektami zbieranymi
+  const checkCollectibleCollisions = () => {
+    if (!gameAreaRef.current || gameState === 'gameOver') return;
+
+    const zigzacElement = gameAreaRef.current.querySelector('[data-zigzac]') as HTMLElement;
+    if (!zigzacElement) return;
+
+    const zigzacRect = zigzacElement.getBoundingClientRect();
+    const gameAreaRect = gameAreaRef.current.getBoundingClientRect();
+
+    const zigzacX = zigzacRect.left - gameAreaRect.left;
+    const zigzacY = zigzacRect.top - gameAreaRect.top;
+
+    setCollectibles(prevCollectibles => {
+      return prevCollectibles.map(collectible => {
+        if (collectible.collected) return collectible;
+
+        const collectibleElement = gameAreaRef.current?.querySelector(`[data-collectible="${collectible.id}"]`) as HTMLElement;
+        if (!collectibleElement) return collectible;
+
+        const collectibleRect = collectibleElement.getBoundingClientRect();
+        const collectibleX = collectibleRect.left - gameAreaRect.left;
+        const collectibleY = collectibleRect.top - gameAreaRect.top;
+
+        // Sprawdź kolizję
+        if (zigzacX < collectibleX + 24 &&
+            zigzacX + 24 > collectibleX &&
+            zigzacY < collectibleY + 24 &&
+            zigzacY + 24 > collectibleY) {
+          
+          console.log(`COLLECTED: ${collectible.type}!`);
+          
+          // Zmniejsz prędkość o 0.95x po zebraniu obiektu
+          setGameSpeed(prev => {
+            const newSpeed = prev * 0.95;
+            console.log(`Speed reduction: ${prev.toFixed(2)} -> ${newSpeed.toFixed(2)} (collected item)`);
+            currentGameSpeedRef.current = newSpeed; // Aktualizuj ref
+            return newSpeed;
+          });
+          
+          // Dodaj do zebranych obiektów
+          setCollectedItems(prev => [...prev, { ...collectible, collected: true }]);
+          
+          return { ...collectible, collected: true };
+        }
+        
+        return collectible;
+      });
+    });
+  };
 
   // Funkcja sprawdzania kolizji używając atrybutów hit
   const checkCollisions = () => {
@@ -100,16 +165,43 @@ const Game = () => {
         if (hitType === 'game-over') {
           console.log('COLLISION with gate! Game Over');
           setGameState('gameOver');
-        } else if (hitType === 'score-point') {
-          // Sprawdź czy ten element już dał punkty
-          if (!scoredElements.current.has(element)) {
-            console.log('SCORE! +1 point - passed through gap');
-            setScore(prev => prev + 1);
-            scoredElements.current.add(element);
+          } else if (hitType === 'score-point') {
+            // Sprawdź czy ten element już dał punkty
+            if (!scoredElements.current.has(element)) {
+              console.log('SCORE! +1 point - passed through gap');
+              setScore(prev => prev + 1);
+              scoredElements.current.add(element);
+              
+              // Zwiększ prędkość o 1.05x po każdym punkcie
+              setGameSpeed(prev => {
+                const newSpeed = prev * 1.05;
+                console.log(`Speed increase: ${prev.toFixed(2)} -> ${newSpeed.toFixed(2)}`);
+                currentGameSpeedRef.current = newSpeed; // Aktualizuj ref
+                return newSpeed;
+              });
+            }
           }
-        }
       }
     });
+  };
+
+  // Generowanie obiektu zbieranego
+  const generateCollectible = (): Collectible => {
+    const types: ('star' | 'coin' | 'gem')[] = ['star', 'coin', 'gem'];
+    const randomType = types[Math.floor(Math.random() * types.length)];
+    
+    // Losowa pozycja Y z większym zakresem
+    const gameArea = gameAreaRef.current;
+    const areaHeight = gameArea ? gameArea.clientHeight : 800;
+    const randomY = Math.random() * (areaHeight - 200) + 100; // 100px do (height-100)px
+    
+    return {
+      id: collectibleIdRef.current++,
+      x: 1200, // Startuje z prawej strony
+      y: randomY, // Losowa pozycja Y w całym obszarze gry
+      type: randomType,
+      collected: false
+    };
   };
 
   // Generowanie nowej bramki
@@ -186,9 +278,10 @@ const Game = () => {
       if (gameState === 'playing') {
         setZigzac(prev => {
           const turnAngle = prev.turnDirection === 'down' ? -90 : 90;
+          const newTargetDirection = prev.direction + turnAngle;
           return {
             ...prev,
-            direction: prev.direction + turnAngle,
+            targetDirection: newTargetDirection, // Ustaw docelowy kierunek
             turnDirection: prev.turnDirection === 'down' ? 'up' : 'down' // Przełącz kierunek
           };
         });
@@ -196,12 +289,17 @@ const Game = () => {
         // Restart gry
         setGameState('playing');
         setScore(0);
+        setGameSpeed(5); // Reset prędkości do wartości początkowej
+        currentGameSpeedRef.current = 5; // Reset ref
         setGates([generateGate()]);
+        setCollectibles([generateCollectible()]); // Dodaj pierwszy obiekt przy restarcie
+        setCollectedItems([]); // Reset zebranych obiektów
         setZigzac({
           x: 100,
           y: 300,
-          direction: 45,
-          speed: gameSpeed,
+          direction: 60,
+          targetDirection: 60, // Reset docelowego kierunku
+          speed: 5, // Reset prędkości ZigZac
           turnDirection: 'down'
         });
         // Wyczyść elementy które dały punkty
@@ -210,7 +308,7 @@ const Game = () => {
         scoreSavedRef.current = false;
       }
     }
-  }, [gameState, gameSpeed]);
+  }, [gameState]);
 
   // Animacja gry
   const animate = () => {
@@ -223,12 +321,37 @@ const Game = () => {
       // Bramki poruszają się w lewo, więc ZigZac pozostaje statyczny po X
       const newX = prev.x; // Bez ruchu po X
       
-      // Kierunek kontroluje zygzak: 45° = w górę, -45° = w dół
-      let zigzagOffset = 0;
-      if (prev.direction === 45) {
-        zigzagOffset = -2; // Ruch w górę (Y maleje) - mniejszy offset
-      } else if (prev.direction === -45) {
-        zigzagOffset = 2; // Ruch w dół (Y rośnie) - mniejszy offset
+      // Płynna interpolacja kierunku
+      const directionDiff = prev.targetDirection - prev.direction;
+      const directionSpeed = 5; // Zwiększona szybkość obrotu (stopnie na klatkę) dla bardziej responsywnego ruchu
+      
+      let newDirection = prev.direction;
+      if (Math.abs(directionDiff) > 0.1) {
+        if (directionDiff > 0) {
+          newDirection = prev.direction + Math.min(directionSpeed, directionDiff);
+        } else {
+          newDirection = prev.direction - Math.min(directionSpeed, Math.abs(directionDiff));
+        }
+        // Debugowanie interpolacji
+        if (Math.abs(directionDiff) > 3) {
+          console.log(`Smooth turn: ${prev.direction.toFixed(1)}° -> ${newDirection.toFixed(1)}° (target: ${prev.targetDirection}°)`);
+        }
+      } else {
+        newDirection = prev.targetDirection;
+      }
+      
+      // Kierunek kontroluje zygzak: 60° = w górę, -60° = w dół
+      // Używamy interpolowanego kierunku zamiast stałych wartości
+      // Normalizujemy kąt do zakresu -90° do 90° dla symetrycznego ruchu
+      const normalizedAngle = Math.max(-90, Math.min(90, newDirection));
+      const radians = (normalizedAngle * Math.PI) / 180;
+      
+      // Używamy bezwzględnej wartości sinusa i znaku kąta dla symetrycznego ruchu
+      const zigzagOffset = Math.sign(normalizedAngle) * Math.abs(Math.sin(radians)) * 4; // Zwiększone skalowanie dla bardziej intensywnego ruchu
+      
+      // Debugowanie ruchu
+      if (Math.abs(zigzagOffset) > 2) {
+        console.log(`Movement: angle=${normalizedAngle.toFixed(1)}°, offset=${zigzagOffset.toFixed(2)}px`);
       }
       
       const newY = prev.y + zigzagOffset;
@@ -248,14 +371,15 @@ const Game = () => {
         ...prev,
         x: finalX,
         y: finalY,
-        speed: gameSpeed // Zaktualizuj prędkość
+        direction: newDirection, // Użyj interpolowanego kierunku
+        speed: currentGameSpeedRef.current // Użyj ref zamiast state
       };
     });
 
     // Aktualizuj bramki i sprawdź kolizje/punkty
     setGates(prevGates => {
       const movedGates = prevGates
-        .map(gate => ({ ...gate, x: gate.x - gameSpeed }))
+        .map(gate => ({ ...gate, x: gate.x - currentGameSpeedRef.current }))
         .filter(gate => gate.x > -100);
 
       // Dodaj nową bramkę
@@ -280,8 +404,55 @@ const Game = () => {
       return movedGates;
     });
 
+    // Aktualizuj obiekty zbierane
+    setCollectibles(prevCollectibles => {
+      const movedCollectibles = prevCollectibles
+        .map(collectible => ({ ...collectible, x: collectible.x - currentGameSpeedRef.current }))
+        .filter(collectible => collectible.x > -100);
+
+      // Debugowanie ruchu obiektów
+      if (movedCollectibles.length > 0) {
+        const visibleObjects = movedCollectibles.filter(obj => obj.x > -100 && obj.x < 1300);
+        console.log(`Collectibles: ${movedCollectibles.length} total, ${visibleObjects.length} visible, speed: ${currentGameSpeedRef.current.toFixed(2)}`);
+        
+        // Debugowanie pozycji obiektów
+        if (visibleObjects.length > 1) {
+          console.log(`WARNING: Multiple visible objects detected!`, visibleObjects.map(obj => `x:${obj.x.toFixed(0)}, y:${obj.y.toFixed(0)}`));
+        }
+      }
+
+      // Dodaj nowy obiekt zbierany (rzadko - co 3000-5000px)
+      const lastCollectible = movedCollectibles[movedCollectibles.length - 1];
+      const visibleObjects = movedCollectibles.filter(obj => obj.x > -100 && obj.x < 1300);
+      
+      // Generuj nowy obiekt tylko jeśli:
+      // 1. Nie ma żadnego obiektu, LUB
+      // 2. Ostatni obiekt jest daleko poza ekranem
+      if (!lastCollectible || lastCollectible.x < -3000) {
+        const newCollectible = generateCollectible();
+        
+        // Sprawdź czy nowy obiekt nie jest zbyt blisko istniejących obiektów
+        const tooClose = movedCollectibles.some(existing => {
+          const distanceY = Math.abs(existing.y - newCollectible.y);
+          return distanceY < 150; // Minimalna odległość 150px
+        });
+        
+        if (!tooClose) {
+          movedCollectibles.push(newCollectible);
+          console.log(`New collectible generated at x: ${newCollectible.x}, y: ${newCollectible.y}`);
+        } else {
+          console.log(`Collectible too close to existing ones, skipping generation`);
+        }
+      }
+
+      return movedCollectibles;
+    });
+
     // Sprawdź kolizje używając atrybutów hit
     checkCollisions();
+    
+    // Sprawdź kolizje z obiektami zbieranymi
+    checkCollectibleCollisions();
 
     animationRef.current = requestAnimationFrame(animate);
   };
@@ -297,6 +468,9 @@ const Game = () => {
   useEffect(() => {
     // Dodaj pierwszą bramkę
     setGates([generateGate()]);
+    
+    // Dodaj pierwszy obiekt zbierany
+    setCollectibles([generateCollectible()]);
     
     // Dodaj listener dla klawisza spacji
     window.addEventListener('keydown', handleKeyPress);
@@ -329,6 +503,11 @@ const Game = () => {
       <div className="fixed top-4 right-4 bg-black/80 text-white px-4 py-2 rounded-lg font-bold text-xl z-10">
         <div>Score: {score}</div>
         <div className="text-sm">Speed: {gameSpeed.toFixed(2)}x</div>
+        <div className="text-sm text-green-400">🎮 ZigZac Range: ±60°</div>
+        <div className="text-sm text-orange-400">💎 Collected: {collectedItems.length}</div>
+        <div className="text-sm text-red-400">🐌 Speed Reduction: 0.95x per item</div>
+        <div className="text-sm text-blue-400">📉 Max 1 item visible</div>
+        <div className="text-sm text-purple-400">📏 Min 150px distance</div>
         {score >= 4 && (
           <div className="text-sm text-yellow-400">⚠️ Gap Shift Active!</div>
         )}
@@ -417,6 +596,26 @@ const Game = () => {
                 data-hit="game-over"
               />
             </div>
+          ))}
+          
+          {/* Obiekty zbierane */}
+          {collectibles.map(collectible => (
+            !collectible.collected && (
+              <div
+                key={collectible.id}
+                className="absolute w-6 h-6 z-15 animate-pulse"
+                style={{
+                  left: collectible.x - 12,
+                  top: collectible.y - 12,
+                }}
+                data-collectible={collectible.id}
+              >
+                {/* Ujednolicony styl - wszystkie obiekty jako okrągłe monety */}
+                <div className="w-full h-full bg-yellow-500 rounded-full border-2 border-yellow-700 flex items-center justify-center shadow-lg">
+                  <div className="w-3 h-3 bg-yellow-300 rounded-full"></div>
+                </div>
+              </div>
+            )
           ))}
           
           {/* ZigZac (wąż) */}
