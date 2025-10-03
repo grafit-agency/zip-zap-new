@@ -14,11 +14,14 @@ const Leaderboard = () => {
       try {
         setLoading(true);
         setError(null);
+        console.log("Pobieranie leaderboard...");
         const data = await getLeaderboard(10);
+        console.log("Dane leaderboard:", data);
         setLeaderboard(data);
       } catch (e: any) {
         console.error("Błąd pobierania leaderboard:", e);
-        setError("Nie można załadować rankingu");
+        console.error("Szczegóły błędu:", e.message, e.code);
+        setError(e.message || "Nie można załadować rankingu");
       } finally {
         setLoading(false);
       }
@@ -70,8 +73,10 @@ const Leaderboard = () => {
           <CardDescription>Najlepsze wyniki</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-destructive">
-            {error}
+          <div className="text-center py-8">
+            <p className="text-destructive font-semibold mb-2">Błąd ładowania</p>
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <p className="text-xs text-muted-foreground mt-2">Sprawdź konsolę przeglądarki (F12)</p>
           </div>
         </CardContent>
       </Card>
@@ -89,8 +94,18 @@ const Leaderboard = () => {
           <CardDescription>Najlepsze wyniki</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            Brak wyników. Bądź pierwszym graczem!
+          <div className="text-center py-8 space-y-4">
+            <p className="text-muted-foreground font-semibold">
+              Brak wyników. Bądź pierwszym graczem!
+            </p>
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>Aby pojawić się w rankingu:</p>
+              <ol className="text-left list-decimal list-inside space-y-1">
+                <li>Zarejestruj konto (/register)</li>
+                <li>Zaloguj się (/login)</li>
+                <li>Zagraj i zdobądź punkty!</li>
+              </ol>
+            </div>
           </div>
         </CardContent>
       </Card>

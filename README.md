@@ -32,9 +32,26 @@ cd <YOUR_PROJECT_NAME>
 # Step 3: Install the necessary dependencies.
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Configure Supabase (REQUIRED!)
+# Create a .env file in the project root:
+cat > .env << EOF
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+EOF
+# Replace with your actual Supabase credentials from https://supabase.com/dashboard
+
+# Step 5: Run the SQL migration in Supabase
+# Go to your Supabase project -> SQL Editor -> paste contents of supabase/migrations/0001_players_rls.sql
+
+# Step 6: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
+
+### ⚠️ Important: Supabase Configuration
+
+This project requires Supabase to work. Without proper configuration, the leaderboard and authentication won't work.
+
+See `README_DEV.md` for detailed architecture and setup instructions.
 
 **Edit a file directly in GitHub**
 

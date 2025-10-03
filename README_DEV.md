@@ -26,8 +26,20 @@
 
 ## RPC
 
-- `increment_attempts()` – zwiększa `attempts` o 1 dla zalogowanego użytkownika.
-- `submit_score(new_score int)` – ustawia `high_score = greatest(high_score, new_score)`.
+- `increment_attempts()` – zwiększa `attempts` o 1 dla zalogowanego użytkownika (`auth.uid()`).
+- `submit_score(new_score int)` – ustawia `high_score = greatest(high_score, new_score)` dla `auth.uid()`.
+  - Funkcja **NIE** obniża wyniku - tylko aktualizuje jeśli nowy wynik jest lepszy.
+  - Używa `greatest()` do porównania obecnego i nowego wyniku.
+
+### Flow gry:
+
+1. Użytkownik gra (nie wymaga logowania)
+2. Po Game Over → automatycznie wywołuje `saveGameResult(score)`:
+   - Jeśli **zalogowany**: zapisuje wynik i zwiększa `attempts`
+   - Jeśli **niezalogowany**: wyświetla komunikat o potrzebie logowania
+3. `saveGameResult()` wywołuje:
+   - `increment_attempts()` - zwiększa licznik prób
+   - `submit_score(score)` - zapisuje wynik (tylko jeśli lepszy)
 
 ## Klient Supabase
 
@@ -70,9 +82,13 @@ const me = await supabase
   .eq("id", user!.id)
   .single();
 
-// RPC
+// RPC - ręczne wywołanie (używane wewnętrznie przez saveGameResult)
 await supabase.rpc("increment_attempts");
 await supabase.rpc("submit_score", { new_score: 123 });
+
+// Zapis wyniku gry (rekomendowane - automatycznie wywołuje oba RPC)
+import { saveGameResult } from "@/api/players";
+await saveGameResult(123); // Zapisuje wynik + zwiększa attempts
 
 // Leaderboard
 const lb = await supabase
@@ -84,5 +100,22 @@ const lb = await supabase
 
 ## Zmienne środowiskowe
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+Utwórz plik `.env` w głównym katalogu projektu:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+**Ważne:** Bez tych zmiennych aplikacja użyje placeholder wartości i leaderboard nie będzie działać!
+
+### Jak zdobyć te wartości:
+
+1. Zaloguj się do [Supabase Dashboard](https://supabase.com/dashboard)
+2. Wybierz swój projekt
+3. Przejdź do `Settings` → `API`
+4. Skopiuj:
+   - `Project URL` → `VITE_SUPABASE_URL`
+   - `anon public` key → `VITE_SUPABASE_ANON_KEY`
+5. Wklej do pliku `.env`
+6. Zrestartuj serwer dev (`npm run dev`)
