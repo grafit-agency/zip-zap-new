@@ -27,10 +27,10 @@ for update to authenticated
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
--- (Optional) global select for leaderboard
+-- (Optional) global select for leaderboard - dostępny dla wszystkich (również niezalogowanych)
 drop policy if exists "read leaderboard" on public.players;
 create policy "read leaderboard" on public.players
-for select to authenticated
+for select to anon, authenticated
 using (true);
 
 create or replace function public.increment_attempts()
