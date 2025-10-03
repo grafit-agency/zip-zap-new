@@ -18,7 +18,7 @@
 
 - Tabela `public.players` ma RLS włączone.
 - Polityki `own row` ograniczają SELECT/INSERT/UPDATE do wiersza, gdzie `auth.uid() = id`.
-- (Opcjonalnie) "read leaderboard": pozwala zalogowanym czytać wszystkich (`using (true)`).
+- Polityka "read leaderboard": pozwala **wszystkim** (w tym niezalogowanym) czytać dane wszystkich graczy (`to anon, authenticated using (true)`). Dzięki temu leaderboard jest publicznie dostępny.
 
 ## Triggery
 
