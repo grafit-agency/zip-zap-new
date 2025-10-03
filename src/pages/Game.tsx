@@ -24,24 +24,25 @@ interface ZigZac {
 const Game = () => {
   const navigate = useNavigate();
   const [gates, setGates] = useState<Gate[]>([]);
-  const [gameSpeed, setGameSpeed] = useState(2);
+  const [gameSpeed, setGameSpeed] = useState(5); // 1.5x szybciej (2 * 1.5 = 3)
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'gameOver'>('playing');
   const [zigzac, setZigzac] = useState<ZigZac>({
     x: 100,
     y: 300,
     direction: 45, // Startuje pod kątem 45° (ruch w górę)
-    speed: gameSpeed, // Ta sama prędkość co animacja
+    speed: 3, // Bazowa prędkość
     turnDirection: 'down' // Pierwszy obrót w dół (do -45°)
   });
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const gateIdRef = useRef(0);
   const scoredElements = useRef<Set<Element>>(new Set());
+  const currentGameSpeedRef = useRef(5); // Ref do przechowywania aktualnej prędkości
 
   // Funkcja sprawdzania kolizji używając atrybutów hit
   const checkCollisions = () => {
-    if (!gameAreaRef.current) return;
+    if (!gameAreaRef.current || gameState === 'gameOver') return;
 
     const zigzacElement = gameAreaRef.current.querySelector('[data-zigzac]') as HTMLElement;
     if (!zigzacElement) return;
@@ -73,13 +74,22 @@ const Game = () => {
         
         if (hitType === 'game-over') {
           console.log('COLLISION with gate! Game Over');
-          setGameState('gameOver');
+          if (gameState === 'playing') {
+            setGameState('gameOver');
+          }
         } else if (hitType === 'score-point') {
-          // Sprawdź czy ten element już dał punkty
-          if (!scoredElements.current.has(element)) {
+          // Sprawdź czy ten element już dał punkty i gra nadal trwa
+          if (!scoredElements.current.has(element) && gameState === 'playing') {
             console.log('SCORE! +1 point - passed through gap');
             setScore(prev => prev + 1);
             scoredElements.current.add(element);
+            
+            // Zwiększ prędkość o 2x po każdym punkcie
+            const newSpeed = currentGameSpeedRef.current * 1.05; // Użyj ref zamiast state
+            console.log(`Speed increase: ${currentGameSpeedRef.current} -> ${newSpeed}`);
+            setGameSpeed(newSpeed);
+            // Zaktualizuj ref z nową prędkością
+            currentGameSpeedRef.current = newSpeed;
           }
         }
       }
@@ -127,23 +137,28 @@ const Game = () => {
             turnDirection: prev.turnDirection === 'down' ? 'up' : 'down' // Przełącz kierunek
           };
         });
-      } else if (gameState === 'gameOver') {
-        // Restart gry
-        setGameState('playing');
-        setScore(0);
-        setGates([generateGate()]);
-        setZigzac({
-          x: 100,
-          y: 300,
-          direction: 45,
-          speed: gameSpeed,
-          turnDirection: 'down'
-        });
-        // Wyczyść elementy które dały punkty
-        scoredElements.current.clear();
       }
+      // Usunięto restart gry spacją - tylko przycisk może restartować
     }
-  }, [gameState, gameSpeed]);
+  }, [gameState]);
+
+  // Funkcja restartu gry
+  const restartGame = () => {
+    setGameState('playing');
+    setScore(0);
+    setGameSpeed(5); // Reset prędkości do wartości bazowej
+    currentGameSpeedRef.current = 5; // Reset ref
+    setGates([generateGate()]);
+    setZigzac({
+      x: 100,
+      y: 300,
+      direction: 45,
+      speed: 3, // Użyj bazowej prędkości zamiast gameSpeed
+      turnDirection: 'down'
+    });
+    // Wyczyść elementy które dały punkty
+    scoredElements.current.clear();
+  };
 
   // Animacja gry
   const animate = () => {
@@ -157,11 +172,13 @@ const Game = () => {
       const newX = prev.x; // Bez ruchu po X
       
       // Kierunek kontroluje zygzak: 45° = w górę, -45° = w dół
+      // Prędkość zygzaka skaluje się z prędkością gry
+      const zigzagSpeed = currentGameSpeedRef.current * 0.5; // ZigZac porusza się wolniej niż bramki
       let zigzagOffset = 0;
       if (prev.direction === 45) {
-        zigzagOffset = -2; // Ruch w górę (Y maleje) - mniejszy offset
+        zigzagOffset = -zigzagSpeed; // Ruch w górę (Y maleje)
       } else if (prev.direction === -45) {
-        zigzagOffset = 2; // Ruch w dół (Y rośnie) - mniejszy offset
+        zigzagOffset = zigzagSpeed; // Ruch w dół (Y rośnie)
       }
       
       const newY = prev.y + zigzagOffset;
@@ -180,15 +197,14 @@ const Game = () => {
       return {
         ...prev,
         x: finalX,
-        y: finalY,
-        speed: gameSpeed // Zaktualizuj prędkość
+        y: finalY
       };
     });
 
     // Aktualizuj bramki i sprawdź kolizje/punkty
     setGates(prevGates => {
       const movedGates = prevGates
-        .map(gate => ({ ...gate, x: gate.x - gameSpeed }))
+        .map(gate => ({ ...gate, x: gate.x - currentGameSpeedRef.current }))
         .filter(gate => gate.x > -100);
 
       // Dodaj nową bramkę
@@ -250,9 +266,10 @@ const Game = () => {
         <Home className="h-6 w-6" />
       </Button>
       
-      {/* Wynik */}
+      {/* Wynik i prędkość */}
       <div className="fixed top-4 right-4 bg-black/80 text-white px-4 py-2 rounded-lg font-bold text-xl z-10">
-        Score: {score}
+        <div>Score: {score}</div>
+        <div className="text-sm">Speed: {gameSpeed.toFixed(2)}x</div>
       </div>
       
       {/* Game Over Screen */}
@@ -261,14 +278,21 @@ const Game = () => {
           <div className="bg-white p-8 rounded-lg text-center max-w-md mx-4">
             <h2 className="text-3xl font-bold text-red-600 mb-4">Game Over!</h2>
             <p className="text-2xl font-bold mb-4">Score: {score}</p>
-            <p className="text-gray-600 mb-4">Press SPACE to restart</p>
-            <Button 
-              onClick={() => navigate("/")}
-              variant="outline"
-              className="mr-4"
-            >
-              Back to Home
-            </Button>
+            <div className="space-y-3">
+              <Button 
+                onClick={restartGame}
+                className="w-full"
+              >
+                Play Again
+              </Button>
+              <Button 
+                onClick={() => navigate("/")}
+                variant="outline"
+                className="w-full"
+              >
+                Back to Home
+              </Button>
+            </div>
           </div>
         </div>
       )}
