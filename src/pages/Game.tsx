@@ -2,6 +2,8 @@ import { Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { saveGameResult } from "@/api/players";
+import { useToast } from "@/hooks/use-toast";
 
 // CSS dla animacji bramek
 const gateAnimationStyle = `
@@ -44,26 +46,28 @@ interface ZigZac {
 
 const Game = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [gates, setGates] = useState<Gate[]>([]);
-  const [gameSpeed, setGameSpeed] = useState(5); // 1.5x szybciej (2 * 1.5 = 3)
+  const [gameSpeed, setGameSpeed] = useState(2);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'gameOver'>('playing');
+  const [savingScore, setSavingScore] = useState(false);
   const [zigzac, setZigzac] = useState<ZigZac>({
     x: 100,
     y: 300,
     direction: 45, // Startuje pod kątem 45° (ruch w górę)
-    speed: 3, // Bazowa prędkość
+    speed: gameSpeed, // Ta sama prędkość co animacja
     turnDirection: 'down' // Pierwszy obrót w dół (do -45°)
   });
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const gateIdRef = useRef(0);
   const scoredElements = useRef<Set<Element>>(new Set());
-  const currentGameSpeedRef = useRef(5); // Ref do przechowywania aktualnej prędkości
+  const scoreSavedRef = useRef(false); // Flaga czy wynik został już zapisany
 
   // Funkcja sprawdzania kolizji używając atrybutów hit
   const checkCollisions = () => {
-    if (!gameAreaRef.current || gameState === 'gameOver') return;
+    if (!gameAreaRef.current) return;
 
     const zigzacElement = gameAreaRef.current.querySelector('[data-zigzac]') as HTMLElement;
     if (!zigzacElement) return;
@@ -95,22 +99,13 @@ const Game = () => {
         
         if (hitType === 'game-over') {
           console.log('COLLISION with gate! Game Over');
-          if (gameState === 'playing') {
-            setGameState('gameOver');
-          }
+          setGameState('gameOver');
         } else if (hitType === 'score-point') {
-          // Sprawdź czy ten element już dał punkty i gra nadal trwa
-          if (!scoredElements.current.has(element) && gameState === 'playing') {
+          // Sprawdź czy ten element już dał punkty
+          if (!scoredElements.current.has(element)) {
             console.log('SCORE! +1 point - passed through gap');
             setScore(prev => prev + 1);
             scoredElements.current.add(element);
-            
-            // Zwiększ prędkość o 2x po każdym punkcie
-            const newSpeed = currentGameSpeedRef.current * 1.05; // Użyj ref zamiast state
-            console.log(`Speed increase: ${currentGameSpeedRef.current} -> ${newSpeed}`);
-            setGameSpeed(newSpeed);
-            // Zaktualizuj ref z nową prędkością
-            currentGameSpeedRef.current = newSpeed;
           }
         }
       }
@@ -156,6 +151,34 @@ const Game = () => {
     };
   };
 
+  // Funkcja zapisywania wyniku do Supabase
+  const handleSaveScore = useCallback(async (finalScore: number) => {
+    if (scoreSavedRef.current) return; // Nie zapisuj dwa razy
+    
+    scoreSavedRef.current = true;
+    setSavingScore(true);
+    
+    try {
+      await saveGameResult(finalScore);
+      toast({
+        title: "Wynik zapisany! 🎉",
+        description: `Twój wynik: ${finalScore} punktów`,
+      });
+    } catch (error: any) {
+      console.error("Błąd zapisu wyniku:", error);
+      // Jeśli użytkownik jest niezalogowany, pokaż komunikat
+      if (error.message?.includes("zalogowanego")) {
+        toast({
+          title: "Zaloguj się aby zapisać wynik",
+          description: "Twój wynik nie został zapisany",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setSavingScore(false);
+    }
+  }, [toast]);
+
   // Obsługa klawisza spacji
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
     if (event.code === 'Space') {
@@ -169,28 +192,25 @@ const Game = () => {
             turnDirection: prev.turnDirection === 'down' ? 'up' : 'down' // Przełącz kierunek
           };
         });
+      } else if (gameState === 'gameOver') {
+        // Restart gry
+        setGameState('playing');
+        setScore(0);
+        setGates([generateGate()]);
+        setZigzac({
+          x: 100,
+          y: 300,
+          direction: 45,
+          speed: gameSpeed,
+          turnDirection: 'down'
+        });
+        // Wyczyść elementy które dały punkty
+        scoredElements.current.clear();
+        // Reset flagi zapisu wyniku
+        scoreSavedRef.current = false;
       }
-      // Usunięto restart gry spacją - tylko przycisk może restartować
     }
-  }, [gameState]);
-
-  // Funkcja restartu gry
-  const restartGame = () => {
-    setGameState('playing');
-    setScore(0);
-    setGameSpeed(5); // Reset prędkości do wartości bazowej
-    currentGameSpeedRef.current = 5; // Reset ref
-    setGates([generateGate()]);
-    setZigzac({
-      x: 100,
-      y: 300,
-      direction: 45,
-      speed: 3, // Użyj bazowej prędkości zamiast gameSpeed
-      turnDirection: 'down'
-    });
-    // Wyczyść elementy które dały punkty
-    scoredElements.current.clear();
-  };
+  }, [gameState, gameSpeed]);
 
   // Animacja gry
   const animate = () => {
@@ -204,13 +224,11 @@ const Game = () => {
       const newX = prev.x; // Bez ruchu po X
       
       // Kierunek kontroluje zygzak: 45° = w górę, -45° = w dół
-      // Prędkość zygzaka skaluje się z prędkością gry
-      const zigzagSpeed = currentGameSpeedRef.current * 0.5; // ZigZac porusza się wolniej niż bramki
       let zigzagOffset = 0;
       if (prev.direction === 45) {
-        zigzagOffset = -zigzagSpeed; // Ruch w górę (Y maleje)
+        zigzagOffset = -2; // Ruch w górę (Y maleje) - mniejszy offset
       } else if (prev.direction === -45) {
-        zigzagOffset = zigzagSpeed; // Ruch w dół (Y rośnie)
+        zigzagOffset = 2; // Ruch w dół (Y rośnie) - mniejszy offset
       }
       
       const newY = prev.y + zigzagOffset;
@@ -229,14 +247,15 @@ const Game = () => {
       return {
         ...prev,
         x: finalX,
-        y: finalY
+        y: finalY,
+        speed: gameSpeed // Zaktualizuj prędkość
       };
     });
 
     // Aktualizuj bramki i sprawdź kolizje/punkty
     setGates(prevGates => {
       const movedGates = prevGates
-        .map(gate => ({ ...gate, x: gate.x - currentGameSpeedRef.current }))
+        .map(gate => ({ ...gate, x: gate.x - gameSpeed }))
         .filter(gate => gate.x > -100);
 
       // Dodaj nową bramkę
@@ -266,6 +285,13 @@ const Game = () => {
 
     animationRef.current = requestAnimationFrame(animate);
   };
+
+  // Effect do zapisywania wyniku po Game Over
+  useEffect(() => {
+    if (gameState === 'gameOver' && !scoreSavedRef.current) {
+      handleSaveScore(score);
+    }
+  }, [gameState, score, handleSaveScore]);
 
   // Rozpocznij grę
   useEffect(() => {
@@ -299,7 +325,7 @@ const Game = () => {
         <Home className="h-6 w-6" />
       </Button>
       
-      {/* Wynik i prędkość */}
+      {/* Wynik */}
       <div className="fixed top-4 right-4 bg-black/80 text-white px-4 py-2 rounded-lg font-bold text-xl z-10">
         <div>Score: {score}</div>
         <div className="text-sm">Speed: {gameSpeed.toFixed(2)}x</div>
@@ -320,21 +346,17 @@ const Game = () => {
           <div className="bg-white p-8 rounded-lg text-center max-w-md mx-4">
             <h2 className="text-3xl font-bold text-red-600 mb-4">Game Over!</h2>
             <p className="text-2xl font-bold mb-4">Score: {score}</p>
-            <div className="space-y-3">
-              <Button 
-                onClick={restartGame}
-                className="w-full"
-              >
-                Play Again
-              </Button>
-              <Button 
-                onClick={() => navigate("/")}
-                variant="outline"
-                className="w-full"
-              >
-                Back to Home
-              </Button>
-            </div>
+            {savingScore && (
+              <p className="text-sm text-muted-foreground mb-4">Zapisywanie wyniku...</p>
+            )}
+            <p className="text-gray-600 mb-4">Press SPACE to restart</p>
+            <Button 
+              onClick={() => navigate("/")}
+              variant="outline"
+              className="mr-4"
+            >
+              Back to Home
+            </Button>
           </div>
         </div>
       )}

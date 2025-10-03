@@ -64,4 +64,26 @@ export async function getLeaderboard(limit = 10): Promise<LeaderboardRow[]> {
   return data as LeaderboardRow[];
 }
 
+export async function saveGameResult(score: number): Promise<void> {
+  // Sprawdź czy użytkownik jest zalogowany
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) {
+    console.warn("Użytkownik niezalogowany - wynik nie zostanie zapisany");
+    return; // Ciche wyjście dla niezalogowanych
+  }
+
+  try {
+    // 1. Zwiększ liczbę prób
+    await incrementAttempts();
+    
+    // 2. Wyślij wynik (tylko jeśli jest lepszy, logika w RPC)
+    await submitScore(score);
+    
+    console.log(`✅ Wynik zapisany: ${score} punktów`);
+  } catch (error) {
+    console.error("Błąd zapisu wyniku:", error);
+    throw error;
+  }
+}
+
 
