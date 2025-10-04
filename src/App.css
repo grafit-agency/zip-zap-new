@@ -6,6 +6,16 @@
   
 }
 
+.bg-image {
+position: absolute;
+top: 0;
+left: 0;
+width: auto;
+height: 100%;
+background-size: cover;
+
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;

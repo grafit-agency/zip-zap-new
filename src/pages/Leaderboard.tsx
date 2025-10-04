@@ -8,7 +8,7 @@ const LeaderboardPage = () => {
   <div className="flex min-h-screen items-center justify-center p-4 relative">
   <div className="container max-w-4xl mx-auto w-full">
     <div className="flex flex-col items-center gap-8">
-      <div className="flex flex-col items-center text-center justify-around gap-8 relative max-w-[31.25rem] w-[100%] h-[100%] aspect-square">
+      <div className="flex flex-col items-center text-center justify-around gap-8 relative max-w-[40rem] w-[100%] h-[100%] aspect-square">
         <div className="flex flex-row align-top justify-between max-h-[2.5rem] w-full max-w-[25.125rem]">
         <div className="text-[3rem] text-white relative z-20 leading-[normal]">LEADERBOARD</div>
         <div className="flex flex-row gap-2 items-start align-top justify-start relative z-20">
@@ -30,12 +30,12 @@ const LeaderboardPage = () => {
               BACK
             </Button>
         </div>
-        <img src="/assety/bg_home/bg_home_card.png" alt="Background" className="absolute top-0 left-0 w-full h-full z-10" />
+        <img src="/assety/bg_home/bg_leader_card.png" alt="Background" className="absolute top-0 left-0 w-full h-full z-10" />
        
       </div>
     </div>
   </div>
-  <img src="/assety/bg_home/bg_home1.png" alt="Background" className="absolute top-0 left-0 w-full h-full" />
+  <img src="/assety/bg_home/bg_leadership.png" alt="Background" className="absolute top-0 left-0 w-full h-full" />
 </div>)
 };
 
