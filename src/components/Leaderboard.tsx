@@ -70,6 +70,7 @@ const Leaderboard = ({ limit = 10, className = "" }: LeaderboardProps) => {
           <li key={index} className="flex justify-between gap-4 text-white">
             <span className="text-white">{new Date().toLocaleDateString()}</span>
             <span className="font-bold">{player.high_score}</span>
+            <span className="text-white/80">{player.attempts} prób</span>
             <span className="truncate">{player.full_name || "Anonim"}</span>
           </li>
         ))}

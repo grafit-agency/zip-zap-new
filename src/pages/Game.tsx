@@ -88,7 +88,7 @@ const Game = () => {
 
   // Funkcja wyboru losowego tła
   const selectRandomBackground = () => {
-    const backgrounds = ['background-1.png', 'background-2.png', 'background-3.png'];
+    const backgrounds = ['#000000', '#000000', '#000000'];
     const randomBackground = backgrounds[Math.floor(Math.random() * backgrounds.length)];
     setSelectedBackground(randomBackground);
   };
@@ -580,7 +580,7 @@ const Game = () => {
         <div 
           className="absolute inset-0 w-full h-full"
           style={{
-            backgroundImage: `url(/assety/tlo-gra/${selectedBackground})`,
+            background: `${selectedBackground})`,
             backgroundSize: '100% 100%',
             backgroundRepeat: 'repeat-x',
             backgroundPosition: `${backgroundOffset}px 0`,
@@ -600,7 +600,7 @@ const Game = () => {
       
       {/* Game Over Screen */}
       {gameState === 'gameOver' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30" data-game-wrapper="true">
+        <div className="fixed inset-0 bg-[#565656]/50 flex items-center justify-center z-30" data-game-wrapper="true">
           <div className="bg-white p-8 rounded-lg text-center max-w-md mx-4">
             <h2 className="text-3xl font-bold mb-4">Game Over!</h2>
             <p className="text-2xl font-bold mb-4">Score: {score}</p>
