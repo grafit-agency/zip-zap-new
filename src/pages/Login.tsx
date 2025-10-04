@@ -98,7 +98,7 @@ const Login = () => {
           </div>
         </div>
       </div>
-      <img src="/public/assety/bg_home/bg_leadership.png" alt="Background" className="absolute top-0 left-0 w-full h-full" />
+      <img src="/assety/bg_home/bg_leadership.png" alt="Background" className="absolute top-0 left-0 w-full h-full" />
     </div>
   );
 };
