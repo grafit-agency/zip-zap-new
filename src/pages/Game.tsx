@@ -17,6 +17,8 @@ const gateAnimationStyle = `
   
   .gate-moving {
     animation: gateMove 3s ease-in-out infinite;
+    z-index: 5 !important;
+    opacity: 1 !important;
   }
   
   .gate-moving-delay-1 { animation-delay: 0.5s; }
@@ -34,13 +36,15 @@ interface Gate {
   gap: number;
   totalHeight: number;
   scored: boolean; // Czy już przyznano punkty za tę bramkę
+  color: 'szary' | 'niebieski' | 'zloty'; // Kolor IQOS (bez faja)
 }
 
 interface Collectible {
   id: number;
   x: number;
   y: number;
-  type: 'star' | 'coin' | 'gem';
+  type: 'coin' | 'gem';
+  points: number; // Liczba punktów za zebranie
   collected: boolean;
 }
 
@@ -63,6 +67,9 @@ const Game = () => {
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'gameOver'>('playing');
   const [savingScore, setSavingScore] = useState(false);
+  const [backgroundOffset, setBackgroundOffset] = useState(0);
+  const [selectedBackground, setSelectedBackground] = useState('');
+  const [selectedZigzacImage, setSelectedZigzacImage] = useState('');
   const [zigzac, setZigzac] = useState<ZigZac>({
     x: 100,
     y: 300,
@@ -78,6 +85,24 @@ const Game = () => {
   const scoredElements = useRef<Set<Element>>(new Set());
   const scoreSavedRef = useRef(false); // Flaga czy wynik został już zapisany
   const currentGameSpeedRef = useRef(5); // Ref do przechowywania aktualnej prędkości
+
+  // Funkcja wyboru losowego tła
+  const selectRandomBackground = () => {
+    const backgrounds = ['background-1.png', 'background-2.png', 'background-3.png'];
+    const randomBackground = backgrounds[Math.floor(Math.random() * backgrounds.length)];
+    setSelectedBackground(randomBackground);
+  };
+
+  // Funkcja wyboru losowego obrazu ZigZac
+  const selectRandomZigzacImage = () => {
+    const zigzacImages = [
+      'blazek_pixel_crisp.png', 'blazek.png', 'cinek.png', 'dym.png', 
+      'greg.png', 'krzychu.png', 'lumos.png', 'mucha.png', 
+      'patryk.png', 'piem.png', 'zgredek.png'
+    ];
+    const randomImage = zigzacImages[Math.floor(Math.random() * zigzacImages.length)];
+    setSelectedZigzacImage(randomImage);
+  };
 
   // Funkcja sprawdzania kolizji z obiektami zbieranymi
   const checkCollectibleCollisions = () => {
@@ -109,15 +134,22 @@ const Game = () => {
             zigzacY < collectibleY + 24 &&
             zigzacY + 24 > collectibleY) {
           
-          console.log(`COLLECTED: ${collectible.type}!`);
+          console.log(`COLLECTED: ${collectible.type}! (+${collectible.points} points)`);
           
-          // Zmniejsz prędkość o 0.95x po zebraniu obiektu
-          setGameSpeed(prev => {
-            const newSpeed = prev * 0.95;
-            console.log(`Speed reduction: ${prev.toFixed(2)} -> ${newSpeed.toFixed(2)} (collected item)`);
-            currentGameSpeedRef.current = newSpeed; // Aktualizuj ref
-            return newSpeed;
-          });
+          // Dodaj punkty zgodnie z typem obiektu
+          setScore(prev => prev + collectible.points);
+          
+          // Zmniejsz prędkość o 0.95x tylko dla monet (nie dla klejnotów)
+          if (collectible.type === 'coin') {
+            setGameSpeed(prev => {
+              const newSpeed = prev * 0.95;
+              console.log(`Speed reduction: ${prev.toFixed(2)} -> ${newSpeed.toFixed(2)} (collected coin)`);
+              currentGameSpeedRef.current = newSpeed; // Aktualizuj ref
+              return newSpeed;
+            });
+          } else {
+            console.log(`No speed reduction for gem collection`);
+          }
           
           // Dodaj do zebranych obiektów
           setCollectedItems(prev => [...prev, { ...collectible, collected: true }]);
@@ -187,27 +219,34 @@ const Game = () => {
 
   // Generowanie obiektu zbieranego
   const generateCollectible = (): Collectible => {
-    const types: ('star' | 'coin' | 'gem')[] = ['star', 'coin', 'gem'];
-    const randomType = types[Math.floor(Math.random() * types.length)];
+    // 80% szansy na zwykłą monetę (1 punkt), 20% na klejnot (5 punktów)
+    const isSpecial = Math.random() < 0.2; // 20% szansy na specjalny obiekt
     
-    // Losowa pozycja Y z większym zakresem
-    const gameArea = gameAreaRef.current;
-    const areaHeight = gameArea ? gameArea.clientHeight : 800;
-    const randomY = Math.random() * (areaHeight - 200) + 100; // 100px do (height-100)px
-    
-    return {
-      id: collectibleIdRef.current++,
-      x: 1200, // Startuje z prawej strony
-      y: randomY, // Losowa pozycja Y w całym obszarze gry
-      type: randomType,
-      collected: false
-    };
+    if (isSpecial) {
+      return {
+        id: collectibleIdRef.current++,
+        x: 1200, // Startuje z prawej strony
+        y: Math.random() * (gameAreaRef.current?.clientHeight || 800 - 200) + 100,
+        type: 'gem',
+        points: 5, // 5 punktów za klejnot
+        collected: false
+      };
+    } else {
+      return {
+        id: collectibleIdRef.current++,
+        x: 1200, // Startuje z prawej strony
+        y: Math.random() * (gameAreaRef.current?.clientHeight || 800 - 200) + 100,
+        type: 'coin',
+        points: 1, // 1 punkt za monetę
+        collected: false
+      };
+    }
   };
 
   // Generowanie nowej bramki
   const generateGate = (): Gate => {
     const gameArea = gameAreaRef.current;
-    if (!gameArea) return { id: 0, x: 0, topHeight: 0, bottomHeight: 0, gap: 0, totalHeight: 0, scored: false };
+    if (!gameArea) return { id: 0, x: 0, topHeight: 0, bottomHeight: 0, gap: 0, totalHeight: 0, scored: false, color: 'szary' };
 
     const areaHeight = gameArea.clientHeight;
     const gap = 150; // Stały odstęp między górną a dolną częścią
@@ -232,6 +271,10 @@ const Game = () => {
     // Dolna część zajmuje resztę dostępnej przestrzeni
     const bottomHeight = availableHeight - topHeight;
 
+    // Losowy kolor IQOS (bez faja)
+    const colors: ('szary' | 'niebieski' | 'zloty')[] = ['szary', 'niebieski', 'zloty'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
     return {
       id: gateIdRef.current++,
       x: gameArea.clientWidth,
@@ -239,7 +282,8 @@ const Game = () => {
       bottomHeight,
       gap,
       totalHeight: areaHeight,
-      scored: false
+      scored: false,
+      color: randomColor
     };
   };
 
@@ -252,10 +296,6 @@ const Game = () => {
     
     try {
       await saveGameResult(finalScore);
-      toast({
-        title: "Wynik zapisany! 🎉",
-        description: `Twój wynik: ${finalScore} punktów`,
-      });
     } catch (error: any) {
       console.error("Błąd zapisu wyniku:", error);
       // Jeśli użytkownik jest niezalogowany, pokaż komunikat
@@ -277,38 +317,49 @@ const Game = () => {
       event.preventDefault();
       if (gameState === 'playing') {
         setZigzac(prev => {
-          const turnAngle = prev.turnDirection === 'down' ? -90 : 90;
+          const turnAngle = prev.turnDirection === 'down' ? -120 : 120; // Zmiana z -90/90 na -120/120 dla dokładnie -60° i +60°
           const newTargetDirection = prev.direction + turnAngle;
+          
+          // Debugowanie kątów
+          console.log(`Turn: ${prev.direction}° + ${turnAngle}° = ${newTargetDirection}° (${prev.turnDirection} -> ${prev.turnDirection === 'down' ? 'up' : 'down'})`);
+          
           return {
             ...prev,
             targetDirection: newTargetDirection, // Ustaw docelowy kierunek
             turnDirection: prev.turnDirection === 'down' ? 'up' : 'down' // Przełącz kierunek
           };
         });
-      } else if (gameState === 'gameOver') {
-        // Restart gry
-        setGameState('playing');
-        setScore(0);
-        setGameSpeed(5); // Reset prędkości do wartości początkowej
-        currentGameSpeedRef.current = 5; // Reset ref
-        setGates([generateGate()]);
-        setCollectibles([generateCollectible()]); // Dodaj pierwszy obiekt przy restarcie
-        setCollectedItems([]); // Reset zebranych obiektów
-        setZigzac({
-          x: 100,
-          y: 300,
-          direction: 60,
-          targetDirection: 60, // Reset docelowego kierunku
-          speed: 5, // Reset prędkości ZigZac
-          turnDirection: 'down'
-        });
-        // Wyczyść elementy które dały punkty
-        scoredElements.current.clear();
-        // Reset flagi zapisu wyniku
-        scoreSavedRef.current = false;
       }
+      // Usunięto restart na spację - teraz tylko przycisk
     }
   }, [gameState]);
+
+  // Funkcja restart gry
+  const handleRestartGame = () => {
+    setGameState('playing');
+    setScore(0);
+    setGameSpeed(5); // Reset prędkości do wartości początkowej
+    currentGameSpeedRef.current = 5; // Reset ref
+    setGates([generateGate()]);
+    setCollectibles([generateCollectible()]); // Dodaj pierwszy obiekt przy restarcie
+    setCollectedItems([]); // Reset zebranych obiektów
+    setZigzac({
+      x: 100,
+      y: 300,
+      direction: 60,
+      targetDirection: 60, // Reset docelowego kierunku
+      speed: 5, // Reset prędkości ZigZac
+      turnDirection: 'down'
+    });
+    // Wyczyść elementy które dały punkty
+    scoredElements.current.clear();
+    // Reset flagi zapisu wyniku
+    scoreSavedRef.current = false;
+    // Wybierz nowe tło i obraz ZigZac
+    selectRandomBackground();
+    selectRandomZigzacImage();
+    setBackgroundOffset(0); // Reset pozycji tła
+  };
 
   // Animacja gry
   const animate = () => {
@@ -321,9 +372,9 @@ const Game = () => {
       // Bramki poruszają się w lewo, więc ZigZac pozostaje statyczny po X
       const newX = prev.x; // Bez ruchu po X
       
-      // Płynna interpolacja kierunku
+      // Płynna interpolacja kierunku (zawsze między 60° a -60°)
       const directionDiff = prev.targetDirection - prev.direction;
-      const directionSpeed = 5; // Zwiększona szybkość obrotu (stopnie na klatkę) dla bardziej responsywnego ruchu
+      const directionSpeed = 10; // Zwiększona szybkość obrotu (stopnie na klatkę) dla bardziej responsywnego ruchu
       
       let newDirection = prev.direction;
       if (Math.abs(directionDiff) > 0.1) {
@@ -332,6 +383,10 @@ const Game = () => {
         } else {
           newDirection = prev.direction - Math.min(directionSpeed, Math.abs(directionDiff));
         }
+        
+        // Upewnij się że kierunek zawsze jest między 60° a -60°
+        newDirection = Math.max(-60, Math.min(60, newDirection));
+        
         // Debugowanie interpolacji
         if (Math.abs(directionDiff) > 3) {
           console.log(`Smooth turn: ${prev.direction.toFixed(1)}° -> ${newDirection.toFixed(1)}° (target: ${prev.targetDirection}°)`);
@@ -344,14 +399,31 @@ const Game = () => {
       // Używamy interpolowanego kierunku zamiast stałych wartości
       // Normalizujemy kąt do zakresu -90° do 90° dla symetrycznego ruchu
       const normalizedAngle = Math.max(-90, Math.min(90, newDirection));
-      const radians = (normalizedAngle * Math.PI) / 180;
+      
+      // Alternatywne podejście - użyj bezwzględnej wartości kąta dla symetrii
+      const absAngle = Math.abs(normalizedAngle);
+      const radians = (absAngle * Math.PI) / 180;
       
       // Używamy bezwzględnej wartości sinusa i znaku kąta dla symetrycznego ruchu
-      const zigzagOffset = Math.sign(normalizedAngle) * Math.abs(Math.sin(radians)) * 4; // Zwiększone skalowanie dla bardziej intensywnego ruchu
+      const zigzagOffset = Math.sign(normalizedAngle) * Math.abs(Math.sin(radians)) * 4; // Stałe skalowanie dla symetrycznego ruchu
       
-      // Debugowanie ruchu
+      // Debugowanie ruchu z porównaniem prędkości
       if (Math.abs(zigzagOffset) > 2) {
-        console.log(`Movement: angle=${normalizedAngle.toFixed(1)}°, offset=${zigzagOffset.toFixed(2)}px`);
+        const sinValue = Math.sin(radians);
+        const absSinValue = Math.abs(sinValue);
+        console.log(`Movement: angle=${normalizedAngle.toFixed(1)}°, absAngle=${absAngle.toFixed(1)}°, sin=${sinValue.toFixed(3)}, offset=${zigzagOffset.toFixed(2)}px`);
+      }
+      
+      // Debugowanie kierunku
+      if (Math.abs(newDirection) < 30) {
+        console.log(`WARNING: ZigZac direction too close to 0°: ${newDirection.toFixed(1)}°`);
+      }
+      
+      // Debugowanie asymetrii ruchu
+      if (Math.abs(newDirection) === 60 || Math.abs(newDirection) === -60) {
+        const testRadians = (Math.abs(newDirection) * Math.PI) / 180;
+        const testOffset = Math.abs(Math.sin(testRadians)) * 4;
+        console.log(`Speed test: ${Math.abs(newDirection)}° = ${testOffset.toFixed(2)}px offset (should be same for +60° and -60°)`);
       }
       
       const newY = prev.y + zigzagOffset;
@@ -374,6 +446,15 @@ const Game = () => {
         direction: newDirection, // Użyj interpolowanego kierunku
         speed: currentGameSpeedRef.current // Użyj ref zamiast state
       };
+    });
+
+    // Aktualizuj pozycję tła (porusza się z prawej do lewej)
+    setBackgroundOffset(prev => {
+      const newOffset = prev - currentGameSpeedRef.current;
+      // Płynne zapętlenie tła - gdy tło wyjdzie poza szerokość obrazu, wraca na początek
+      // Używamy szerokości obrazu tła zamiast szerokości ekranu
+      const imageWidth = gameArea.clientWidth; // Zakładamy że obraz ma szerokość ekranu
+      return newOffset <= -imageWidth ? newOffset + imageWidth : newOffset;
     });
 
     // Aktualizuj bramki i sprawdź kolizje/punkty
@@ -439,7 +520,7 @@ const Game = () => {
         
         if (!tooClose) {
           movedCollectibles.push(newCollectible);
-          console.log(`New collectible generated at x: ${newCollectible.x}, y: ${newCollectible.y}`);
+          console.log(`New collectible generated: ${newCollectible.type} (+${newCollectible.points}pts) at x: ${newCollectible.x}, y: ${newCollectible.y}`);
         } else {
           console.log(`Collectible too close to existing ones, skipping generation`);
         }
@@ -466,6 +547,10 @@ const Game = () => {
 
   // Rozpocznij grę
   useEffect(() => {
+    // Wybierz losowe tło i obraz ZigZac
+    selectRandomBackground();
+    selectRandomZigzacImage();
+    
     // Dodaj pierwszą bramkę
     setGates([generateGate()]);
     
@@ -487,93 +572,138 @@ const Game = () => {
   }, [handleKeyPress]);
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="h-screen w-screen overflow-hidden" data-game="wrapper">
       <style>{gateAnimationStyle}</style>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => navigate("/")}
-        className="fixed top-4 left-4 hover:scale-110 transition-transform z-10"
-        aria-label="Go back home"
-      >
-        <Home className="h-6 w-6" />
-      </Button>
       
-      {/* Wynik */}
-      <div className="fixed top-4 right-4 bg-black/80 text-white px-4 py-2 rounded-lg font-bold text-xl z-10">
-        <div>Score: {score}</div>
-        <div className="text-sm">Speed: {gameSpeed.toFixed(2)}x</div>
-        <div className="text-sm text-green-400">🎮 ZigZac Range: ±60°</div>
-        <div className="text-sm text-orange-400">💎 Collected: {collectedItems.length}</div>
-        <div className="text-sm text-red-400">🐌 Speed Reduction: 0.95x per item</div>
-        <div className="text-sm text-blue-400">📉 Max 1 item visible</div>
-        <div className="text-sm text-purple-400">📏 Min 150px distance</div>
-        {score >= 4 && (
-          <div className="text-sm text-yellow-400">⚠️ Gap Shift Active!</div>
-        )}
-        {score >= 4 && (
-          <div className="text-sm text-blue-400">🎯 Gate Movement Active!</div>
-        )}
-        {score >= 4 && (
-          <div className="text-sm text-purple-400">🛡️ Extended Collision Areas!</div>
-        )}
+      {/* Animowane tło */}
+      {selectedBackground && (
+        <div 
+          className="absolute inset-0 w-full h-full"
+          style={{
+            backgroundImage: `url(/assety/tlo-gra/${selectedBackground})`,
+            backgroundSize: '100% 100%',
+            backgroundRepeat: 'repeat-x',
+            backgroundPosition: `${backgroundOffset}px 0`,
+            zIndex: 0
+          }}
+        />
+      )}
+      {/* Score - top left */}
+      <div className="fixed top-4 left-4 font-bold text-[3rem] z-50 text-uppercase">
+        SCORE: {score}
+      </div>
+      
+      {/* User name - bottom left */}
+      <div className="fixed bottom-4 left-4 font-bold text-[3rem] z-50 uppercase">
+        Player: {localStorage.getItem('username') || 'Guest'}
       </div>
       
       {/* Game Over Screen */}
       {gameState === 'gameOver' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30" data-game-wrapper="true">
           <div className="bg-white p-8 rounded-lg text-center max-w-md mx-4">
-            <h2 className="text-3xl font-bold text-red-600 mb-4">Game Over!</h2>
+            <h2 className="text-3xl font-bold mb-4">Game Over!</h2>
             <p className="text-2xl font-bold mb-4">Score: {score}</p>
-            {savingScore && (
-              <p className="text-sm text-muted-foreground mb-4">Zapisywanie wyniku...</p>
-            )}
-            <p className="text-gray-600 mb-4">Press SPACE to restart</p>
-            <Button 
-              onClick={() => navigate("/")}
-              variant="outline"
-              className="mr-4"
-            >
-              Back to Home
-            </Button>
+            <div className="flex gap-4 justify-center">
+              <h2 
+                onClick={handleRestartGame}
+                className="text-2xl font-bold cursor-pointer hover:text-gray-700"
+              >
+                Restart Game
+              </h2>
+              <h2 
+                onClick={() => navigate("/")}
+                className="text-2xl font-bold cursor-pointer hover:text-gray-700"
+              >
+                Back to Home
+              </h2>
+            </div>
           </div>
         </div>
       )}
       
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="h-full w-full">
         <div
           ref={gameAreaRef}
-          className="relative bg-gradient-to-b from-sky-200 to-sky-400 border-4 border-gray-800 rounded-lg overflow-hidden shadow-2xl"
+          className="relative border-4 border-gray-800 overflow-hidden shadow-2xl h-full w-full"
           style={{ 
-            width: '95dvw', 
-            height: '90dvh',
-            maxWidth: '1200px',
-            maxHeight: '800px'
+            width: '100vw', 
+            height: '100vh'
           }}
         >
           {/* Bramki */}
           {gates.map(gate => (
-            <div 
-              key={gate.id} 
-              className={`absolute flex flex-col h-full ${score >= 4 && gate.x < (gameAreaRef.current?.offsetWidth || 1200) ? `gate-moving gate-moving-delay-${(gate.id % 5) + 1}` : ''}`}
-              style={{ 
-                left: gate.x,
-                width: '60px',
-                height: `${gate.totalHeight}px`
-              }}
-              data-gates="wrapper"
-            >
+            <div key={gate.id}>
+              {/* IQOS - statyczny, przesunięty na boki */}
+              <img
+                src={`/assety/przeszkody/iqos/${gate.color === 'szary' ? 'igos-szary' : gate.color === 'niebieski' ? 'iqos-niebieski' : 'iqos-zloty'}.png`}
+                alt="Gate obstacle"
+                style={{
+                  position: 'absolute',
+                  top: '00px',
+                  left: `${gate.x}px`,
+                  width: '60px',
+                  height: '250px',
+                  objectFit: 'cover',
+                  transform: 'rotate(180deg)',
+                  zIndex: 10,
+                  opacity: 1,
+                  pointerEvents: 'none'
+                }}
+              />
+              <img
+                src={`/assety/przeszkody/iqos/${gate.color === 'szary' ? 'igos-szary' : gate.color === 'niebieski' ? 'iqos-niebieski' : 'iqos-zloty'}.png`}
+                alt="Gate obstacle"
+                style={{
+                  position: 'absolute',
+                  bottom: '0px',
+                  left: `${gate.x}px`,
+                  width: '60px',
+                  height: '250px',
+                  objectFit: 'cover',
+                  zIndex: 10,
+                  opacity: 1,
+                  pointerEvents: 'none'
+                }}
+              />
+              
+              {/* Wrapper bramki - tylko faja */}
+              <div 
+                className={`absolute flex flex-col h-full ${score >= 4 && gate.x < (gameAreaRef.current?.offsetWidth || 1200) ? `gate-moving gate-moving-delay-${(gate.id % 5) + 1}` : ''}`}
+                style={{ 
+                  left: gate.x,
+                  width: '60px',
+                  height: `${gate.totalHeight}px`
+                }}
+                data-gates="wrapper"
+              >
               {/* Górna część bramki */}
               <div 
-                className="bg-green-600 border-2 border-green-800 flex-shrink-0"
+                className="flex-shrink-0 flex items-center justify-center relative overflow-hidden"
                 style={{ 
                   height: `${gate.topHeight + 70}px`,
-                  paddingTop: '30px',
-                  paddingBottom: '30px',
+                  width: '60px',
                   marginTop: '-100px'
                 }}
                 data-hit="game-over"
-              />
+              >
+                {/* Faja - tło */}
+                <img
+                  src={`/assety/przeszkody/iqos/faja.png`}
+                  alt="Gate obstacle"
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    height: 'auto',
+                    width: '100%',
+                    objectFit: 'cover',
+                    zIndex: 5,
+                    opacity: 1,
+                    transform: 'rotate(180deg)'
+                  }}
+                />
+              </div>
               
               {/* Przejście (gap) - niewidoczne, ale zajmuje miejsce */}
               <div 
@@ -586,15 +716,31 @@ const Game = () => {
               
               {/* Dolna część bramki */}
               <div 
-                className="bg-green-600 border-2 border-green-800 flex-shrink-0"
+                className="flex-shrink-0 flex items-center justify-center relative overflow-hidden"
                 style={{ 
                   height: `${gate.bottomHeight + 70}px`,
-                  paddingTop: '30px',
-                  paddingBottom: '30px',
+                  width: '60px',
                   marginBottom: '-100px'
                 }}
                 data-hit="game-over"
-              />
+              >
+                {/* Faja - tło */}
+                <img
+                  src={`/assety/przeszkody/iqos/faja.png`}
+                  alt="Gate obstacle"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    height: 'auto',
+                    width: '100%',
+                    objectFit: 'cover',
+                    zIndex: 5,
+                    opacity: 1
+                  }}
+                />
+              </div>
+              </div>
             </div>
           ))}
           
@@ -603,44 +749,47 @@ const Game = () => {
             !collectible.collected && (
               <div
                 key={collectible.id}
-                className="absolute w-6 h-6 z-15 animate-pulse"
+                className="absolute w-12 h-12 z-15"
                 style={{
                   left: collectible.x - 12,
                   top: collectible.y - 12,
                 }}
                 data-collectible={collectible.id}
               >
-                {/* Ujednolicony styl - wszystkie obiekty jako okrągłe monety */}
-                <div className="w-full h-full bg-yellow-500 rounded-full border-2 border-yellow-700 flex items-center justify-center shadow-lg">
-                  <div className="w-3 h-3 bg-yellow-300 rounded-full"></div>
-                </div>
+                {/* Różne style dla różnych typów obiektów */}
+                {collectible.type === 'coin' && (
+                  <img 
+                    src="/assety/do-zbierania/logo.gif" 
+                    alt="Coin" 
+                    className="w-full h-full object-contain"
+                  />
+                )}
+                {collectible.type === 'gem' && (
+                  <img 
+                    src="/assety/do-zbierania/ring.gif" 
+                    alt="Gem" 
+                    className="w-full h-full object-contain"
+                  />
+                )}
               </div>
             )
           ))}
           
           {/* ZigZac (wąż) */}
-          <div 
-            className="absolute w-6 h-6 bg-red-500 rounded-full border-2 border-red-700 shadow-lg z-20"
-            style={{
-              left: zigzac.x - 12,
-              top: zigzac.y - 12,
-              transform: `rotate(${zigzac.direction}deg)`
-            }}
-            data-zigzac="true"
-          />
+          {selectedZigzacImage && (
+            <img
+              src={`/assety/glowy/${selectedZigzacImage}`}
+              alt="ZigZac"
+              className="absolute w-12 h-12 z-20"
+              style={{
+                left: zigzac.x - 12,
+                top: zigzac.y - 12,
+                transform: `rotate(${zigzac.direction}deg)`
+              }}
+              data-zigzac="true"
+            />
+          )}
           
-          {/* Tło gry */}
-          <div className="absolute inset-0 bg-gradient-to-b from-sky-200 via-sky-300 to-sky-400 opacity-50" />
-          
-          {/* Instrukcje */}
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-center">
-            <h1 className="text-2xl font-bold text-gray-800 drop-shadow-lg">
-              ZipZap Game
-            </h1>
-            <p className="text-sm text-gray-700">
-              Naciśnij SPACJĘ aby zmienić kierunek ZigZac
-            </p>
-          </div>
         </div>
       </div>
     </div>
