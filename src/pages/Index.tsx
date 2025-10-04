@@ -39,81 +39,44 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-game-gradient p-4">
-      {/* User indicator w prawym górnym rogu */}
-      <div className="fixed top-4 right-4 z-50">
-        {loading ? (
-          <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg">
-            <span className="text-sm text-muted-foreground">Ładowanie...</span>
-          </div>
-        ) : user ? (
-          <div className="bg-white/90 backdrop-blur-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <User className="w-5 h-5 text-primary" />
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-foreground">
-                  {user.user_metadata?.full_name || user.email}
-                </span>
-                <span className="text-xs text-muted-foreground">Zalogowany</span>
-              </div>
+    <div className="flex min-h-screen items-center justify-center p-4 relative">
+      <div className="container max-w-4xl mx-auto w-full">
+        <div className="flex flex-col items-center gap-8">
+          <div className="flex flex-col items-center text-center justify-center gap-8 relative max-w-[31.25rem] w-[100%] h-[100%] aspect-square">
+            <div className="flex flex-row gap-2 items-start align-top justify-start relative z-20">
+              <img src="/logo-grafit.png" alt="Grafit" className="w-[6.5rem] ratio-1/1" />
+              <img src="/logo.png" alt="ZipZap" className="w-[13.3rem] " />
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-              aria-label="Wyloguj"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : (
-          <Button
-            onClick={() => navigate("/login")}
-            variant="outline"
-            className="bg-white/90 backdrop-blur-sm hover:bg-white shadow-lg"
-          >
-            <User className="w-4 h-4 mr-2" />
-            Zaloguj się
-          </Button>
-        )}
-      </div>
-
-      <div className="container max-w-6xl mx-auto">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          {/* Lewa strona - Tytuł i przyciski */}
-          <div className="text-center md:text-left space-y-8 animate-in fade-in duration-700">
-            <h1 className="text-5xl md:text-7xl font-bold text-primary-foreground drop-shadow-lg tracking-tight">
-              Welcome to ZipZap
-            </h1>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+            <div className="flex flex-col  gap-[0.625rem] justify-start align-start items-start relative z-20">
               <Button 
-                onClick={() => navigate("/game")}
-                size="lg"
-                className="text-xl px-12 py-6 shadow-game-glow hover:scale-105 transition-transform duration-200"
+                onClick={() => navigate("/login")}
+                className="text-xl text-left bg-transparent text-white p-0 text-[3.125rem] leading-[normal]"
+                indicatorBlink
+                indicatorColor="white"
               >
-                Play
+                LOG IN
               </Button>
-              {!user && (
                 <Button 
-                  onClick={() => navigate("/login")}
-                  size="lg"
-                  variant="outline"
-                  className="text-xl px-12 py-6 bg-white/90 hover:bg-white hover:scale-105 transition-transform duration-200"
+                  onClick={() => navigate("/game")}
+                  className="text-xl text-left bg-transparent text-white p-0 text-[3.125rem] leading-[normal]"
                 >
-                  Login
+                  PLAY AS A GUEST
                 </Button>
-              )}
+                <Button 
+                  onClick={() => navigate("/leaderboard")}
+                  className="text-xl text-left bg-transparent text-white p-0 text-[3.125rem] leading-[normal]"
+                >
+                  LEADERBOARD
+                </Button>
             </div>
-          </div>
-
-          {/* Prawa strona - Leaderboard */}
-          <div className="animate-in fade-in duration-1000 delay-300">
-            <Leaderboard />
+            <img src="/assety/bg_home/bg_home_card.png" alt="Background" className="absolute top-0 left-0 w-full h-full z-10" />
+            <div className="relative z-10 w-full max-w-[25.125rem] mix-blend-difference flex flex-row space-between">
+              <Leaderboard className="w-full" limit={1} />
+              </div>
           </div>
         </div>
       </div>
+      <img src="/assety/bg_home/bg_home1.png" alt="Background" className="absolute top-0 left-0 w-full h-full" />
     </div>
   );
 };
